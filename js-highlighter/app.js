@@ -268,6 +268,8 @@ h1, h2, h3 {
      * Setup event listeners
      */
     setupEventListeners() {
+        const editor = document.getElementById('code-editor');
+        
         // Language selection
         document.getElementById('language-select').addEventListener('change', (e) => {
             this.currentLanguage = e.target.value;
@@ -292,11 +294,26 @@ h1, h2, h3 {
 
         // Auto-highlight on input (with debounce)
         let debounceTimer;
-        document.getElementById('source-input').addEventListener('input', () => {
+        editor.addEventListener('input', () => {
             clearTimeout(debounceTimer);
             debounceTimer = setTimeout(() => {
                 this.highlightCode();
-            }, 500);
+            }, 300);
+        });
+
+        // Prevent default paste behavior and insert plain text
+        editor.addEventListener('paste', (e) => {
+            e.preventDefault();
+            const text = e.clipboardData.getData('text/plain');
+            document.execCommand('insertText', false, text);
+        });
+
+        // Handle tab key
+        editor.addEventListener('keydown', (e) => {
+            if (e.key === 'Tab') {
+                e.preventDefault();
+                document.execCommand('insertText', false, '    ');
+            }
         });
     }
 
@@ -305,31 +322,95 @@ h1, h2, h3 {
      */
     loadSample() {
         const sample = this.samples[this.currentLanguage] || '';
-        document.getElementById('source-input').value = sample;
+        const editor = document.getElementById('code-editor');
+        editor.textContent = sample;
         this.highlightCode();
     }
 
     /**
-     * Highlight the code in the input
+     * Get plain text content from editor
+     */
+    getEditorText() {
+        const editor = document.getElementById('code-editor');
+        return editor.textContent || '';
+    }
+
+    /**
+     * Highlight the code in the editor
      */
     highlightCode() {
-        const sourceInput = document.getElementById('source-input');
-        const output = document.getElementById('highlighted-output');
-        const text = sourceInput.value;
+        const editor = document.getElementById('code-editor');
+        const text = this.getEditorText();
 
         if (!text.trim()) {
-            output.innerHTML = '<span class="line">// Enter code to see highlighting...</span>';
             return;
+        }
+
+        // Save cursor position
+        const selection = window.getSelection();
+        const range = selection.rangeCount > 0 ? selection.getRangeAt(0) : null;
+        let cursorOffset = 0;
+        
+        if (range) {
+            const preCaretRange = range.cloneRange();
+            preCaretRange.selectNodeContents(editor);
+            preCaretRange.setEnd(range.endContainer, range.endOffset);
+            cursorOffset = preCaretRange.toString().length;
         }
 
         try {
             const highlighted = this.colorer.highlight(text, this.currentLanguage);
-            output.innerHTML = highlighted;
-            this.updateInfo(`Highlighted ${text.split('\\n').length} lines using ${this.currentLanguage} scheme`);
+            editor.innerHTML = highlighted;
+            this.updateInfo(`Highlighted ${text.split('\n').length} lines using ${this.currentLanguage} scheme`);
+
+            // Restore cursor position
+            if (cursorOffset > 0) {
+                this.setCursorPosition(editor, cursorOffset);
+            }
         } catch (error) {
             console.error('Highlighting error:', error);
-            output.textContent = text;
+            editor.textContent = text;
             this.updateInfo(`Error: ${error.message}`, 'error');
+        }
+    }
+
+    /**
+     * Set cursor position in the editor
+     */
+    setCursorPosition(element, offset) {
+        try {
+            const range = document.createRange();
+            const selection = window.getSelection();
+            
+            let currentOffset = 0;
+            const walker = document.createTreeWalker(
+                element,
+                NodeFilter.SHOW_TEXT,
+                null,
+                false
+            );
+
+            let node;
+            while (node = walker.nextNode()) {
+                const nodeLength = node.textContent.length;
+                if (currentOffset + nodeLength >= offset) {
+                    range.setStart(node, offset - currentOffset);
+                    range.collapse(true);
+                    selection.removeAllRanges();
+                    selection.addRange(range);
+                    return;
+                }
+                currentOffset += nodeLength;
+            }
+
+            // If we couldn't find the exact position, set to end
+            range.selectNodeContents(element);
+            range.collapse(false);
+            selection.removeAllRanges();
+            selection.addRange(range);
+        } catch (e) {
+            // Silently fail if cursor positioning doesn't work
+            console.debug('Could not restore cursor position:', e);
         }
     }
 

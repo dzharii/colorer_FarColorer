@@ -77,10 +77,6 @@ class HRCParser {
      */
     parseType(typeElement) {
         const name = typeElement.getAttribute('name');
-        const scheme = {
-            name: name,
-            nodes: []
-        };
 
         // Parse scheme children
         const schemeElements = typeElement.querySelectorAll(':scope > scheme');
@@ -91,8 +87,14 @@ class HRCParser {
             }
         });
 
-        // Store the main type scheme
-        this.schemes.set(name, scheme);
+        // If there's a scheme with the same name as the type, it's the main scheme
+        // Otherwise, store a reference to the first scheme
+        if (!this.schemes.has(name) && schemeElements.length > 0) {
+            const firstScheme = this.parseScheme(schemeElements[0]);
+            if (firstScheme) {
+                this.schemes.set(name, firstScheme);
+            }
+        }
     }
 
     /**

@@ -28,7 +28,7 @@ class TextHighlighter {
         for (let lineNum = 0; lineNum < lines.length; lineNum++) {
             const line = lines[lineNum];
             const highlightedLine = this.highlightLine(line, scheme, 0);
-            highlightedLines.push(`<span class="line">${highlightedLine}</span>`);
+            highlightedLines.push(highlightedLine);
         }
 
         return highlightedLines.join('\n');
